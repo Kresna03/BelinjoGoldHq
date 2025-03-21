@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistem Pembungkusan Belinjo</title>
+
+  <!-- ✅ Firebase & Firestore -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    // ✅ Konfigurasi Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyBtrOc1jMsw0mblfptS_8O7m5da6XK2Ako",
+      authDomain: "sistem-pembungkusan.firebaseapp.com",
+      projectId: "sistem-pembungkusan",
+      storageBucket: "sistem-pembungkusan.appspot.com",
+      messagingSenderId: "523667211612",
+      appId: "1:523667211612:web:831b90c879237975256d99",
+      measurementId: "G-17BDVT79T4"
+    };
+
+    // ✅ Initialize Firebase & Firestore
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // ✅ Fungsi Tambah Nama
+    async function tambahNama() {
+      const nama = document.getElementById("nama").value.trim();
+      if (!nama) return alert("Masukkan nama!");
+
+      await setDoc(doc(db, "nama", nama), { rekod: [] });
+      document.getElementById("nama").value = "";
+    }
+
+    // ✅ Fungsi Tambah Rekod
+    async function tambahRekod(nama) {
+      const tarikh = document.getElementById(`tarikh_${nama}`).value;
+      const hari = document.getElementById(`hari_${nama}`).value.trim();
+      const balangBesar = parseInt(document.getElementById(`balangBesar_${nama}`).value) || 0;
+      const balangKecil = parseInt(document.getElementById(`balangKecil_${nama}`).value) || 0;
+      const plastik = parseInt(document.getElementById(`plastik_${nama}`).value) || 0;
+
+      if (!tarikh || !hari) return alert("Sila lengkapkan tarikh dan hari.");
+
+      const tarikhFormat = new Date(tarikh).toLocaleDateString("ms-MY");
+      const docRef = doc(db, "nama", nama);
+      const docSnap = await getDoc(docRef);
+      let rekodSediaAda = docSnap.exists() ? docSnap.data().rekod : [];
+
+      rekodSediaAda.push({ tarikh: tarikhFormat, hari, balangBesar, balangKecil, plastik });
+
+      await updateDoc(docRef, { rekod: rekodSediaAda });
+    }
+
+    // ✅ Fungsi Padam Rekod
+    async function padamRekod(nama, index) {
+      const docRef = doc(db, "nama", nama);
+      const docSnap = await getDoc(docRef);
+      let rekodSediaAda = docSnap.exists() ? docSnap.data().rekod : [];
+
+      rekodSediaAda.splice(index, 1);
+
+      await updateDoc(docRef, { rekod: rekodSediaAda });
+    }
+
+    // ✅ Fungsi Padam Nama
+    async function padamNama(nama) {
+      await deleteDoc(doc(db, "nama", nama));
+    }
+
+    // ✅ Real-time Listener
+    function listenNama() {
+      const container = document.getElementById("namaSections");
+
+      onSnapshot(collection(db, "nama"), (snapshot) => {
+        container.innerHTML = "";
+        snapshot.forEach((docSnap) => {
+          paparkanSatuNama(docSnap.id, docSnap.data().rekod);
+        });
+      });
+    }
+
+    // ✅ Paparkan Nama & Rekod
+    function paparkanSatuNama(nama, rekodList) {
+      const container = document.getElementById("namaSections");
+
+      let section = document.createElement("fieldset");
+      section.setAttribute("id", `section_${nama}`);
+      section.innerHTML = `
+        <legend>${nama} <button onclick="padamNama('${nama}')" class="delete-btn">Padam Nama</button></legend>
+        <input type="date" id="tarikh_${nama}">
+        <input type="text" id="hari_${nama}" placeholder="Hari">
+        <input type="number" id="balangBesar_${nama}" placeholder="Balang Besar" min="0">
+        <input type="number" id="balangKecil_${nama}" placeholder="Balang Kecil" min="0">
+        <input type="number" id="plastik_${nama}" placeholder="Plastik" min="0">
+        <button onclick="tambahRekod('${nama}')">Tambah Rekod</button>
+        <table>
+          <thead>
+            <tr>
+              <th>Tarikh</th>
+              <th>Hari</th>
+              <th>Balang Besar</th>
+              <th>Balang Kecil</th>
+              <th>Plastik</th>
+              <th>Tindakan</th>
+            </tr>
+          </thead>
+          <tbody id="rekodTable_${nama}"></tbody>
+        </table>
+      `;
+      container.appendChild(section);
+      paparkanRekod(nama, rekodList);
+    }
+
+    // ✅ Paparkan Setiap Rekod
+    function paparkanRekod(nama, rekodList) {
+      const tableBody = document.getElementById(`rekodTable_${nama}`);
+      tableBody.innerHTML = "";
+
+      rekodList.forEach((rekod, index) => {
+        let row = `<tr>
+          <td>${rekod.tarikh}</td>
+          <td>${rekod.hari}</td>
+          <td>${rekod.balangBesar}</td>
+          <td>${rekod.balangKecil}</td>
+          <td>${rekod.plastik}</td>
+          <td><button class='delete-btn' onclick='padamRekod("${nama}", ${index})'>Padam</button></td>
+        </tr>`;
+        tableBody.innerHTML += row;
+      });
+    }
+
+    // ✅ Fungsi Eksport ke Excel
+    async function eksportKeExcel() {
+      const snapshot = await getDocs(collection(db, "nama"));
+
+      let dataExcel = [];
+
+      snapshot.forEach(docSnap => {
+        const nama = docSnap.id;
+        const rekodList = docSnap.data().rekod || [];
+
+        rekodList.forEach(rekod => {
+          dataExcel.push({
+            Nama: nama,
+            Tarikh: rekod.tarikh,
+            Hari: rekod.hari,
+            "Balang Besar": rekod.balangBesar,
+            "Balang Kecil": rekod.balangKecil,
+            Plastik: rekod.plastik
+          });
+        });
+      });
+
+      if (dataExcel.length === 0) {
+        alert("Tiada data untuk dieksport!");
+        return;
+      }
+
+      const ws = XLSX.utils.json_to_sheet(dataExcel);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Rekod Pembungkusan");
+
+      XLSX.writeFile(wb, "rekod_pembungkusan.xlsx");
+    }
+
+    // ✅ Event Listener
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("btnTambahNama").addEventListener("click", tambahNama);
+      document.getElementById("btnEksportExcel").addEventListener("click", eksportKeExcel);
+      listenNama();
+    });
+
+    // ✅ Eksport Fungsi supaya global (akses onclick)
+    window.tambahRekod = tambahRekod;
+    window.padamRekod = padamRekod;
+    window.padamNama = padamNama;
+  </script>
+
+  <!-- ✅ Library SheetJS untuk Eksport Excel -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .container { max-width: 800px; margin: auto; }
+    input, button { display: block; width: 100%; margin: 5px 0; padding: 8px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f4f4f4; }
+    .delete-btn { cursor: pointer; padding: 5px 10px; border: none; background-color: red; color: white; }
+    .export-btn { cursor: pointer; padding: 10px; background-color: green; color: white; margin-top: 10px; }
+    fieldset { margin-top: 20px; padding: 10px; border-radius: 5px; }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h2>Sistem Pembungkusan Belinjo</h2>
+
+    <!-- Input Nama -->
+    <input type="text" id="nama" placeholder="Masukkan nama">
+    <button id="btnTambahNama">Tambah Nama</button>
+
+    <!-- Butang Eksport Excel -->
+    <button id="btnEksportExcel" class="export-btn">Eksport ke Excel</button>
+
+    <!-- Container Nama Sections -->
+    <div id="namaSections"></div>
+  </div>
+</body>
+</html>
